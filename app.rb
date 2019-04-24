@@ -48,5 +48,4 @@ class App
     end
     result
   end
-
 end
