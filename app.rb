@@ -1,52 +1,43 @@
+require_relative 'params_parser'
 class App
-  VALID_PARAMS = {"year" => "%Y", "month" => "%m", "day" => "%d",
-                  "hour" => "%H", "minute" => "%M", "second" => "%S"}.freeze
-
   def call(env)
-    parse_params(env)
-    [ @status, headers, body ]
+  	params = get_params(env)
+  	return empty_params unless params
+
+  	parser = ParamsParser.new(params)
+
+  	if parser.valid?
+  		formatted_time(parser.time_format)
+  	else
+  		error_in_params(parser.errors)
+  	end
   end
 
   private
 
-  def parse_params(env)
-    unless env["REQUEST_PATH"] == "/time"
-      @status = 404
-      return
-    end
-    time_params = Rack::Utils.parse_nested_query(env["QUERY_STRING"])["format"].downcase.split(",")
-    return unless time_params
-    time_format = []
-    @wrong_params = []
-    time_params.each do |param|
-      if VALID_PARAMS[param]
-        time_format << VALID_PARAMS[param]
-      else
-        @wrong_params << param
-      end
-    end
+  def get_params(env)
+  	Rack::Utils.parse_nested_query(env["QUERY_STRING"])["format"]
+  end
 
-    @time = Time.now.strftime(time_format.join('-'))
-    if @wrong_params.empty?
-      @status = 200
-    else
-      @status = 400
-    end
+  def formatted_time(format)
+  	status = 200
+  	body = ["Current time is #{Time.now.strftime(format.join('-'))}"]
+  	[ status, headers, body ]
+  end
+
+  def error_in_params(errors)
+  	status = 400
+  	body = ["Unknown time format [#{errors.join(', ')}]"]
+  	[ status, headers, body ]
+  end
+
+  def empty_params
+    status = 400
+    body = ["Format didn't specified"]
+  	[ status, headers, body ]
   end
 
   def headers
-    { 'Content-Type' => 'text/html' }
+  	{ 'Content-Type' => 'text/plain' }
   end
-
-  def body
-    return ["404 Not found"] if @status == 404
-    result = []
-    result << @time if @time
-    unless @wrong_params.empty?
-      result << "<br>"
-      result << "Unknown time format [#{@wrong_params.join(', ')}]"
-    end
-    result
-  end
-
 end
